@@ -159,12 +159,16 @@ def prepare_raw_observation(
         image_k: extract_images_from_raw_observation(lerobot_obs, image_k) for image_k in image_keys
     }
 
-    # Turns the image features to (C, H, W) with H, W matching the policy image features.
-    # This reduces the resolution of the images
-    image_dict = {
-        key: resize_robot_observation_image(torch.tensor(lerobot_obs[key]), policy_image_features[key].shape)
-        for key in image_keys
-    }
+    # Convert images from (H, W, C) to (C, H, W) without resizing.
+    # The model's internal resize_with_pad handles resolution conversion
+    # while preserving aspect ratio. Resizing here would squish the image
+    # (e.g. 1280x720 → 256x256) and destroy spatial information.
+    image_dict = {}
+    for key in image_keys:
+        img = torch.tensor(lerobot_obs[key])
+        if img.ndim == 3:
+            img = img.permute(2, 0, 1)  # HWC → CHW
+        image_dict[key] = img
 
     if "task" in robot_obs:
         state_dict["task"] = robot_obs["task"]
